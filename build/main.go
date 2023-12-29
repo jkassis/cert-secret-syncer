@@ -28,7 +28,7 @@ func main() {
 				logCwd()
 				app := viper.GetString("APP")
 				version := viper.GetString("VERSION")
-				host := "hub.docker.com"
+				host := "jkassis"
 				tag := fmt.Sprintf("%s/%s:%s", host, app, version)
 
 				doOrDie(&Opts{stdoutPrint: true}, "docker", "buildx", "build",
@@ -56,7 +56,7 @@ func main() {
 
 				app := viper.GetString("APP")
 				version := viper.GetString("VERSION")
-				host := "hub.docker.com"
+				host := "jkassis"
 				tag := fmt.Sprintf("%s/%s:%s", host, app, version)
 				doOrDie(nil, "docker", "push", tag)
 			},
