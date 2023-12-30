@@ -1,15 +1,15 @@
 Cert Secret Syncer
 ==================
-This kubernetes controller synchronizes a certificate stored in a kubernetes.io/tls secret with infrastructure providers.
+This kubernetes controller synchronizes a certificate stored in a `kubernetes.io/tls` secret with infrastructure providers.
 
-You might want this, for example, to synchronize certificates managed by cert-manager with AWS Certificate Manager so that the ALB attached to an ingress has the generated certificate to terminate TLS on the edge.
+You might want this, for example, to synchronize certificates managed by `cert-manager` with `AWS Certificate Manager` so that the ALB attached to an ingress has the generated certificate to terminate TLS on the edge.
 
 Cert Secret Syncer currently only supports Amazon Certificate Manager.
 
 
 How To
 ------
-The controller relies on permissions granted to a ServiceAccount through OIDC. If you install EKS with terraform, you'll need to start with something like this...
+The controller relies on permissions granted to a ServiceAccount through OIDC (Open ID Connect). If you install EKS with Terraform, you'll need to start with something like this...
 
 ```
 module "cert_secret_syncer_irsa" {
@@ -45,7 +45,7 @@ output "cert_secret_syncer_irsa_role_arn" {
 }
 ```
 
-Then, grab the ARN from the terraform outputs and annotate the ServiceAccount through the chart values.yaml file like this:
+Then, grab the ARN from the Terraform outputs and annotate the `ServiceAccount` through the chart `values.yaml` file like this:
 
 ```
 serviceAccount:
@@ -59,7 +59,7 @@ serviceAccount:
   name: ""
 ```
 
-At that point, you are probably ready to apply the helm chart. Try that using the make.sh file...
+At that point, you are probably ready to apply the helm chart. Try that using the `make.sh` file...
 
 ```
 ./make.sh install
@@ -71,7 +71,7 @@ and of course, if you need to make changes, try...
 ./make.sh upgrade
 ```
 
-When you are ready, create a Certificate and Ingress like this...
+When you are ready, create a `Certificate` and `Ingress` like this...
 
 ```
 apiVersion: cert-manager.io/v1
@@ -135,15 +135,13 @@ spec:
 
 How It Works
 ------------
-cert-manager processes the certifiate and creates a secret with these annotation...
+cert-manager processes the `Certifiate` and creates a `Secret` with these annotation...
 
 ```
   "cert-secret-syncer/backend": "ACM"
   "cert-secret-syncer/ingress-labels": "app=merchie"
 ```
 
-`cert-secret-syncer` picks this up, pushes the certificate to ACM and retrieves the ARN. it applies the ARN to the Ingress as an annotation and when the secret changes, it will retrieve it to update the ACM certificate tied to the ARN. 
+`cert-secret-syncer` picks this up, pushes the Certificate to ACM and retrieves the ARN. It applies the ARN to the Secret as an annotation and when the Secret changes, it retrieves the ARN from the Secret to update the ACM Certificate tied to the ARN.
 
-it will also apply the ARN to any ingresses that match the given label through the `alb.ingress.kubernetes.io/certificate-arn` annotation. now the ALB load-balancer knows what certificate to load to terminate TLS.
-
-    
+It also applies the ARN to any Ingresses that match the `ingress-labels` label selector. It applies the ARN as the value to the `alb.ingress.kubernetes.io/certificate-arn` annotation so that the ALB knows what certificate to load to terminate TLS.
