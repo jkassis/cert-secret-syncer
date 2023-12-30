@@ -1,4 +1,4 @@
-module jkassis.com/acm-sync
+module jkassis.com/cert-secret-syncer
 
 go 1.21.1
 
@@ -9,8 +9,11 @@ replace k8s.io/api => github.com/kubernetes/api v0.28.0
 require (
 	github.com/aws/aws-sdk-go v1.49.7
 	github.com/go-cmd/cmd v1.4.2
+	github.com/go-logr/logr v1.3.0
+	github.com/go-logr/zapr v1.2.4
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/viper v1.18.2
+	go.uber.org/zap v1.25.0
 	k8s.io/api v0.29.0
 	k8s.io/apimachinery v0.29.0
 	sigs.k8s.io/controller-runtime v0.0.0-00010101000000-000000000000
@@ -23,7 +26,6 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
-	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.3 // indirect

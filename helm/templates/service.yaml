@@ -5,11 +5,11 @@ metadata:
   labels:
     {{- include "..labels" . | nindent 4 }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.metrics.type }}
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
+    - port: {{ .Values.metrics.port }}
+      targetPort: metrics
       protocol: TCP
-      name: http
+      name: metrics
   selector:
     {{- include "..selectorLabels" . | nindent 4 }}

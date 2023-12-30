@@ -2,13 +2,19 @@
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
+namespace: cert-secret-syncer
+
 selectorLabels:
   app: cert-secret-syncer
 
 replicaCount: 1
 
-service:
+metrics:
+  type: NodePort
   port: 8080
+
+health:
+  port: 8081
 
 image:
   repository: jkassis/cert-secret-syncer
@@ -22,7 +28,8 @@ serviceAccount:
   # Specifies whether a service account should be created
   create: true
   # Annotations to add to the service account
-  annotations: {}
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::807125168235:role/live-shinetribe_cert-secret-syncer-irsa
   # The name of the service account to use.
   # If not set and create is true, a name is generated using the fullname template
   name: ""

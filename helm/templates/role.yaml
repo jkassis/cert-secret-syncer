@@ -1,22 +1,26 @@
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
-  name: cert-secret-syncer
+  name: {{ include "..serviceAccountName" . }}
 rules:
 - apiGroups: [""]
   resources: ["secrets"]
+  verbs: ["get", "watch", "list", "update"]
+- apiGroups: ["networking.k8s.io"]
+  resources: ["ingresses"]
   verbs: ["get", "watch", "list", "update"]
 
 ---
 
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
-  name: cert-secret-syncer
+  name: {{ include "..serviceAccountName" . }}
 subjects:
 - kind: ServiceAccount
-  name: cert-secret-syncer
+  name: {{ include "..serviceAccountName" . }}
+  namespace: {{ .Values.namespace }}
 roleRef:
-  kind: Role
-  name: cert-secret-syncer
+  kind: ClusterRole
+  name: {{ include "..serviceAccountName" . }}
   apiGroup: rbac.authorization.k8s.io

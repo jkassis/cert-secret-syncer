@@ -5,6 +5,16 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Run",
+      "type": "go",
+      "request": "launch",
+      "mode": "debug",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/cmd/main.go",
+      "args": [ ],
+      "env": {}
+    },
+    {
       "name": "Build Image",
       "type": "go",
       "request": "launch",
