@@ -68,7 +68,7 @@ func executeBuild(cmd *cobra.Command, args []string) error {
 	}
 
 	tag := fmt.Sprintf("%s/%s:%s", host, image, version)
-	args := []string{
+	args = []string{
 		"buildx", "build",
 		"--platform", platforms,
 		"--progress=plain",
@@ -167,4 +167,3 @@ func flagBool(cmd *cobra.Command, name string, defaultValue bool, description st
 		}
 	}
 }
-
