@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"strings"
 
@@ -13,74 +14,96 @@ import (
 )
 
 func main() {
-	var rootCmd = &cobra.Command{
-		Use:   "app",
-		Short: "Tool for Building and Creating Images of the App",
-	}
-	flagString(rootCmd, "APP", "cert-secret-syncer", "Name of the application", false)
+	log.SetFlags(0) // Simple log format
+	initializeFlags()
 
-	{
-		buildCmd := &cobra.Command{
-			Use:   "build",
-			Short: "Builds the Docker build",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Executing build creation process")
-				logCwd()
-				app := viper.GetString("APP")
-				version := viper.GetString("VERSION")
-				host := "jkassis"
-				tag := fmt.Sprintf("%s/%s:%s", host, app, version)
-
-				doOrDie(&Opts{stdoutPrint: true}, "docker", "buildx", "build",
-					// "-o", "type=local,dest=/tmp/docker-build",
-					"--platform", "linux/amd64",
-					"--progress=plain",
-					"--build-arg", os.ExpandEnv("NPM_TOKEN=${NPM_TOKEN}"),
-					"--build-arg", "APP="+app,
-					"-t", tag, "-f", "./build/Dockerfile", ".")
-			},
-		}
-
-		flagString(buildCmd, "VERSION", "latest", "Tag for the Docker build", false)
-		rootCmd.AddCommand(buildCmd)
-	}
-
-	// pushCmd
-	{
-		pushCmd := &cobra.Command{
-			Use:   "push",
-			Short: "Pushes the latest build to the repository",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Executing push")
-				logCwd()
-
-				app := viper.GetString("APP")
-				version := viper.GetString("VERSION")
-				host := "jkassis"
-				tag := fmt.Sprintf("%s/%s:%s", host, app, version)
-				doOrDie(nil, "docker", "push", tag)
-			},
-		}
-
-		flagString(pushCmd, "VERSION", "latest", "Tag for the Docker build", false)
-		rootCmd.AddCommand(pushCmd)
-	}
-
-	// parse options and run the command
-	viper.AutomaticEnv()
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalf("Error executing command: %v", err)
 	}
 }
 
-func logCwd() {
+var rootCmd = &cobra.Command{
+	Use:   "build",
+	Short: "Tool for building and pushing Docker images",
+	Long:  `A tool that facilitates the building and pushing of Docker images with configurable parameters.`,
+}
+
+func initializeFlags() {
+	flagString(rootCmd, "IMAGE", "cert-secret-syncer", "Name of the image", false)
+	flagString(rootCmd, "HOST", "default-host", "Host for the Docker registry", false)
+	flagString(rootCmd, "VERSION", "latest", "Tag for the Docker image", false)
+	flagString(rootCmd, "PLATFORMS", "linux/amd64", "Comma-separated target platforms for buildx", false)
+	flagBool(rootCmd, "PUSH", false, "Push image after build (required for multi-arch)", false)
+	rootCmd.AddCommand(buildCmd, pushCmd)
+	viper.AutomaticEnv()
+}
+
+var buildCmd = &cobra.Command{
+	Use:   "build",
+	Short: "Builds the Docker image",
+	Long:  `Builds a Docker image based on the provided configuration flags and environment variables.`,
+	RunE:  executeBuild,
+}
+
+var pushCmd = &cobra.Command{
+	Use:   "push",
+	Short: "Pushes the Docker image",
+	Long:  `Pushes the latest Docker image to the specified registry using the provided configuration.`,
+	RunE:  executePush,
+}
+
+func executeBuild(cmd *cobra.Command, args []string) error {
+	log.Println("Executing build process")
+	logCurrentWorkingDirectory()
+	image := viper.GetString("IMAGE")
+	host := viper.GetString("HOST")
+	version := viper.GetString("VERSION")
+	platforms := viper.GetString("PLATFORMS")
+	push := viper.GetBool("PUSH")
+	if platforms == "" {
+		platforms = "linux/amd64"
+	}
+	if strings.Contains(platforms, ",") && !push {
+		return fmt.Errorf("multi-arch build requires PUSH=true")
+	}
+
+	tag := fmt.Sprintf("%s/%s:%s", host, image, version)
+	args := []string{
+		"buildx", "build",
+		"--platform", platforms,
+		"--progress=plain",
+	}
+	if push {
+		args = append(args, "--push")
+	} else {
+		args = append(args, "--load")
+	}
+	args = append(args,
+		"--build-arg", os.ExpandEnv("NPM_TOKEN=${NPM_TOKEN}"),
+		"-t", tag, "-f", "./build/Dockerfile", ".",
+	)
+
+	_, err := executeCommand(&Opts{stdoutPrint: true}, "docker", args...)
+	return err
+}
+
+func executePush(cmd *cobra.Command, args []string) error {
+	log.Println("Executing push process")
+	logCurrentWorkingDirectory()
+	image, host, version := viper.GetString("IMAGE"), viper.GetString("HOST"), viper.GetString("VERSION")
+	tag := fmt.Sprintf("%s/%s:%s", host, image, version)
+
+	_, err := executeCommand(nil, "docker", "push", tag)
+	return err
+}
+
+func logCurrentWorkingDirectory() {
 	pwd, err := os.Getwd()
 	if err != nil {
-		fmt.Print(err)
+		log.Printf("Error getting current directory: %v", err)
 		return
 	}
-	fmt.Println("running in " + pwd)
+	log.Println("Running in:", pwd)
 }
 
 type Opts struct {
@@ -88,45 +111,60 @@ type Opts struct {
 	stdin       io.Reader
 }
 
-func doOrDie(opts *Opts, cmd string, args ...string) (status ex.Status, stdout, stderr io.Reader) {
+func executeCommand(opts *Opts, cmdString string, args ...string) (ex.Status, error) {
 	if opts == nil {
 		opts = &Opts{stdoutPrint: true}
 	}
-	fmt.Printf("> %s %s\n", cmd, strings.Join(args, " "))
-	Cmd := ex.NewCmdOptions(ex.Options{Streaming: true}, cmd, args...)
-	statusChan := Cmd.StartWithStdin(opts.stdin)
-	stdoutBuf := bytes.NewBuffer(nil)
-	stderrBuf := bytes.NewBuffer(nil)
-	go func() {
-		for line := range Cmd.Stdout {
-			stdoutBuf.Write([]byte(line))
-			if opts.stdoutPrint {
-				fmt.Println(line)
-			}
-		}
-	}()
-	go func() {
-		for line := range Cmd.Stderr {
-			stderrBuf.Write([]byte(line))
-			fmt.Println(line)
-		}
-	}()
-	orDie(<-statusChan)
-	status = Cmd.Status()
-	return status, bytes.NewReader(stdoutBuf.Bytes()), bytes.NewReader(stderrBuf.Bytes())
-}
+	log.Printf("> %s %s\n", cmdString, strings.Join(args, " "))
+	cmd := ex.NewCmdOptions(ex.Options{Streaming: true}, cmdString, args...)
+	statusChan := cmd.StartWithStdin(opts.stdin)
+	stdoutBuf, stderrBuf := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
 
-func orDie(status ex.Status) {
+	go handleStream(cmd.Stdout, stdoutBuf, opts.stdoutPrint)
+	go handleStream(cmd.Stderr, stderrBuf, true)
+
+	status := <-statusChan
 	if status.Exit != 0 {
-		fmt.Print(status.Stderr)
-		os.Exit(1)
+		log.Printf("Command failed with exit code %d and error: %s", status.Exit, stderrBuf.String())
+		return status, fmt.Errorf("command failed: %s", stderrBuf.String())
+	}
+	return status, nil
+}
+
+func handleStream(stream <-chan string, buffer *bytes.Buffer, shouldPrint bool) {
+	for line := range stream {
+		buffer.WriteString(line)
+		if shouldPrint {
+			log.Println(line)
+		}
 	}
 }
 
-func flagString(cmd *cobra.Command, name, dflt, desc string, required bool) {
-	cmd.PersistentFlags().String(name, dflt, desc)
-	viper.BindPFlag(name, cmd.PersistentFlags().Lookup(name))
+func flagString(cmd *cobra.Command, name, defaultValue, description string, required bool) {
+	cmd.PersistentFlags().String(name, defaultValue, description)
+	err := viper.BindPFlag(name, cmd.PersistentFlags().Lookup(name))
+	if err != nil {
+		log.Fatalf("Error binding flag '%s': %v", name, err)
+	}
 	if required {
-		cmd.MarkPersistentFlagRequired(name)
+		err := cmd.MarkPersistentFlagRequired(name)
+		if err != nil {
+			log.Fatalf("Error marking flag '%s' as required: %v", name, err)
+		}
 	}
 }
+
+func flagBool(cmd *cobra.Command, name string, defaultValue bool, description string, required bool) {
+	cmd.PersistentFlags().Bool(name, defaultValue, description)
+	err := viper.BindPFlag(name, cmd.PersistentFlags().Lookup(name))
+	if err != nil {
+		log.Fatalf("Error binding flag '%s': %v", name, err)
+	}
+	if required {
+		err := cmd.MarkPersistentFlagRequired(name)
+		if err != nil {
+			log.Fatalf("Error marking flag '%s': %v", name, err)
+		}
+	}
+}
+

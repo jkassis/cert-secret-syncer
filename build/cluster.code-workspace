@@ -1,0 +1,19 @@
+{
+  "folders": [
+    {
+      "path": "../../clusters"
+    },
+    {
+      "path": "../../eddie"
+    },
+    {
+      "path": "../../homie"
+    },
+    {
+      "path": "../../cookie"
+    },
+    {
+      "path": ".."
+    }
+  ]
+}
