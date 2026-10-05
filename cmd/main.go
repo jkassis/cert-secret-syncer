@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/acm"
 	"github.com/go-logr/logr"
 	"github.com/jenkins-x/cert-secret-syncer/util"
+	"k8s.io/utils/strings/slices"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -128,8 +129,11 @@ func (r *SecretSyncer) Reconcile(ctx context.Context, req ctrl.Request) (result 
 			}
 
 			for _, ingress := range ingresses.Items {
-				if ingress.Annotations[certificateArnAnnotation] != certificateArn {
-					ingress.Annotations[certificateArnAnnotation] = certificateArn
+				// verify that certificateArn is in the list
+				ingCertificateAnnotation := splitCommaSeparatedString(ingress.Annotations[certificateArnAnnotation])
+				if !slices.Contains(ingCertificateAnnotation, certificateArn) {
+					ingCertificateAnnotation = append(ingCertificateAnnotation, certificateArn)
+					ingress.Annotations[certificateArnAnnotation] = strings.Join(ingCertificateAnnotation, ",")
 					err = r.Update(ctx, &ingress)
 					if err != nil {
 						return ctrl.Result{}, fmt.Errorf("failed to update ingress: %v", err)
@@ -215,7 +219,7 @@ func (r *SecretSyncer) ingressesGetByLabels(
 func (r *SecretSyncer) labelStringParse(labelString string) (map[string]string, error) {
 	labelMap := map[string]string{}
 
-	pairs := strings.Split(labelString, ",")
+	pairs := splitCommaSeparatedString(labelString)
 	for _, pair := range pairs {
 		kv := strings.Split(strings.TrimSpace(pair), "=")
 		if len(kv) != 2 {
@@ -234,6 +238,19 @@ func (r *SecretSyncer) labelStringParse(labelString string) (map[string]string, 
 
 	return labelMap, nil
 
+}
+
+func splitCommaSeparatedString(commaSeparatedString string) []string {
+	var result []string
+	parts := strings.Split(commaSeparatedString, ",")
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if len(part) == 0 {
+			continue
+		}
+		result = append(result, part)
+	}
+	return result
 }
 
 func main() {
